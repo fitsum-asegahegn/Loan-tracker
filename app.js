@@ -33,6 +33,14 @@ function formatETB(n) {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(n) + ' ETB';
 }
 
+function getFlavorKey(daysRemaining) {
+  if (daysRemaining > 365 * 7) return 'flavorChill';
+  if (daysRemaining > 365 * 3) return 'flavorRunway';
+  if (daysRemaining > 365) return 'flavorTicking';
+  if (daysRemaining > 30) return 'flavorEmergency';
+  return 'flavorFinal';
+}
+
 function render() {
   document.documentElement.lang = lang;
   if (!currentUser) {
@@ -160,6 +168,13 @@ async function renderDashboard() {
           const forgiven = clause?.triggered;
           const deadline = new Date(start.getTime() + YEARS_10_MS);
           const clauseExpired = now > deadline && !forgiven;
+          const msRemaining = deadline.getTime() - now.getTime();
+          const daysRemaining = Math.max(0, Math.floor(msRemaining / MS_PER_DAY));
+          const hoursRemaining = Math.max(
+            0,
+            Math.floor((msRemaining % MS_PER_DAY) / (1000 * 60 * 60))
+          );
+          const flavorKey = getFlavorKey(daysRemaining);
           const lenderName = profiles[loan.lender_id]?.display_name || 'Lender';
           const borrowerName = profiles[loan.borrower_id]?.display_name || 'Borrower';
 
@@ -191,11 +206,19 @@ async function renderDashboard() {
               <p>${t(lang, 'marriageClauseDesc')}</p>
               <p class="deadline">${t(lang, 'deadline')}: ${deadline.toISOString().slice(0, 10)}</p>
               ${
+                !forgiven && !clauseExpired
+                  ? `<div class="countdown-box">
+                      <div class="countdown-number">${daysRemaining}<span class="countdown-unit">d</span> ${hoursRemaining}<span class="countdown-unit">h</span></div>
+                      <div class="countdown-flavor">${t(lang, flavorKey)}</div>
+                    </div>`
+                  : ''
+              }
+              ${
                 forgiven
                   ? `<p class="status">${t(lang, 'forgiven')} (${t(lang, 'forgivenOn')} ${clause.triggered_date})</p>`
                   : clauseExpired
                   ? `<p class="status">${t(lang, 'expired')}</p>`
-                  : `<p class="status">${t(lang, 'active')}</p>`
+                  : ''
               }
               ${
                 !forgiven && !isLender && currentUser.id === loan.borrower_id
