@@ -42,6 +42,10 @@ create policy "profiles editable by owner"
   on profiles for update
   using (auth.uid() = id);
 
+create policy "profiles insertable by owner"
+  on profiles for insert
+  with check (auth.uid() = id);
+
 create policy "loans readable by participants"
   on loans for select
   using (auth.uid() = lender_id or auth.uid() = borrower_id);
