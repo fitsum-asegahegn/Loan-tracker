@@ -232,10 +232,16 @@ async function renderDashboard() {
         .join('')
     : `<p class="empty">${t(lang, 'noLoans')}</p>`;
 
+  const borrowers = Object.values(profiles).filter((p) => p.role === 'borrower');
   const newLoanForm = isLender
     ? `
     <div class="card">
       <h2>${t(lang, 'newLoan')}</h2>
+      ${
+        borrowers.length > 1
+          ? `<p class="error">${t(lang, 'duplicateBorrowers')}</p>`
+          : ''
+      }
       <form id="loan-form">
         <label>${t(lang, 'principal')}<input type="number" id="loan-principal" min="1" step="0.01" required /></label>
         <label>${t(lang, 'startDate')}<input type="date" id="loan-date" required /></label>
