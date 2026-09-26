@@ -10,6 +10,16 @@ export async function getProfile(userId) {
   return data;
 }
 
+export async function upsertProfile({ id, displayName, role }) {
+  const { data, error } = await supabaseClient
+    .from('profiles')
+    .upsert({ id, display_name: displayName, role })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function getAllProfiles() {
   const { data, error } = await supabaseClient.from('profiles').select('*');
   if (error) throw error;
