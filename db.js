@@ -31,7 +31,7 @@ export async function getLoans(userId) {
     .from('loans')
     .select('*, forgiveness_clause(*)')
     .or(`lender_id.eq.${userId},borrower_id.eq.${userId}`)
-    .order('start_date', { ascending: true });
+    .order('created_at', { ascending: false });
   if (error) throw error;
   return data;
 }
