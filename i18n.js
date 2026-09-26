@@ -15,6 +15,8 @@ export const strings = {
     noAccount: "No account? Sign up",
     checkEmail: 'Account created — check your email to confirm it, then sign in.',
     noBorrowerYet: "Fitsum hasn't signed up yet — ask him to sign up first.",
+    duplicateBorrowers:
+      "Heads up: more than one account is registered as Fitsum (borrower). New loans might attach to the wrong one — check Supabase (Authentication + profiles table) and remove the extra account.",
     signOut: 'Sign out',
     newLoan: 'Register a new loan',
     principal: 'Amount lent (ETB)',
@@ -60,6 +62,8 @@ export const strings = {
     noAccount: 'አካውንት የለህም? ተመዝገብ',
     checkEmail: 'አካውንት ተፈጥሯል — ኢሜይልህን አረጋግጥ፣ ከዚያ ግባ።',
     noBorrowerYet: 'ፍፁም እስካሁን አልተመዘገበም — መጀመሪያ እንዲመዘገብ ንገረው።',
+    duplicateBorrowers:
+      'ማሳሰቢያ፦ ከአንድ በላይ አካውንት እንደ ፍፁም (ተበዳሪ) ተመዝግቧል። አዲስ ብድሮች ወደ ትክክለኛው ላይሆን ይችላል — Supabase ላይ (Authentication እና profiles ሠንጠረዥ) አረጋግጠህ ተጨማሪውን አካውንት አጥፋ።',
     signOut: 'ውጣ',
     newLoan: 'አዲስ ብድር መዝግብ',
     principal: 'የተበደረው መጠን (ብር)',
