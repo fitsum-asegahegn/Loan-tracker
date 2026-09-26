@@ -1,4 +1,7 @@
-const CACHE_NAME = 'debt-tracker-v1'; ።   
+// Bump this on every deploy that changes app.js/index.html/i18n.js/etc.
+// Changing this string is also what makes the browser notice sw.js itself
+// changed, so it installs the new worker and evicts the old cache.
+const CACHE_NAME = 'debt-tracker-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -28,20 +31,21 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Network-first: always try to get the freshest app.js/index.html/etc, and
+// only fall back to the cached copy if the network request fails (offline).
+// This is what makes new deploys actually show up instead of getting stuck
+// on whatever was cached the first time someone opened the app.
 self.addEventListener('fetch', (event) => {
   // Never cache Supabase API calls — those must always hit the network
   if (event.request.url.includes('supabase.co')) return;
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request)
-        .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          return response;
-        })
-        .catch(() => cached);
-    })
+    fetch(event.request)
+      .then((response) => {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
