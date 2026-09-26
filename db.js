@@ -71,3 +71,14 @@ export async function triggerForgiveness(loanId, dateMarried) {
   if (error) throw error;
   return data;
 }
+
+export async function markRepaid(loanId, repaidDate) {
+  const { data, error } = await supabaseClient
+    .from('loans')
+    .update({ repaid: true, repaid_date: repaidDate })
+    .eq('id', loanId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
