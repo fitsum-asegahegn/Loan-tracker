@@ -21,17 +21,24 @@ start date, that loan is forgiven in full. Each loan shows a countdown to that
 ## Setup
 
 1. Create a Supabase project.
-2. In **Authentication > Users**, manually create two accounts (one for
-   Fitsum, one for Philemon).
+2. In **Authentication > Providers > Email**, turn **off** "Confirm email"
+   (Settings) so sign-up logs straight in — this is just two friends, no
+   need for email verification. If you leave it on, sign-up will ask you to
+   confirm by email before your profile is created, and it gets created
+   automatically the first time you sign in afterward.
 3. In the **SQL Editor**, run `supabase-schema.sql`.
-4. Copy each user's UUID from Authentication > Users into `plan-seed.js`,
-   then after deploying, run it once from the browser console (see the
-   comment at the bottom of that file) to create their profile rows.
-5. Fill in `config.js` with your project's URL and anon public key
+4. Fill in `config.js` with your project's URL and anon public key
    (Project Settings > API).
-6. Push this repo to GitHub, then in Vercel: **New Project > Import Git
+5. Push this repo to GitHub, then in Vercel: **New Project > Import Git
    Repository**, select the repo, no build command needed (static site),
    deploy.
+6. Open the deployed site and use the **Sign up** tab — Philemon signs up
+   once picking "Philemon (lender)", Fitsum signs up once picking
+   "Fitsum (borrower)". That's it, no manual dashboard account creation or
+   seed script needed.
+
+`plan-seed.js` is now optional — only useful if you ever want to
+backfill a profile row by hand from the console instead of through the UI.
 
 ## Notes / things you may want to change
 
