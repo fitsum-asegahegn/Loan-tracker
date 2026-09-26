@@ -218,6 +218,7 @@ async function renderDashboard() {
         <label>${t(lang, 'startDate')}<input type="date" id="loan-date" required /></label>
         <label>${t(lang, 'note')}<input type="text" id="loan-note" /></label>
         <button type="submit">${t(lang, 'submit')}</button>
+        <p id="loan-error" class="error"></p>
       </form>
     </div>
   `
@@ -250,19 +251,30 @@ async function renderDashboard() {
   if (loanForm) {
     loanForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      $('#loan-error').textContent = '';
       const principal = Number($('#loan-principal').value);
       const startDate = $('#loan-date').value;
       const note = $('#loan-note').value.trim();
       const borrower = Object.values(profiles).find((p) => p.role === 'borrower');
-      await createLoan({
-        lenderId: currentUser.id,
-        borrowerId: borrower.id,
-        principal,
-        startDate,
-        interestMode: 'daily_1pct',
-        note,
-      });
-      render();
+
+      if (!borrower) {
+        $('#loan-error').textContent = t(lang, 'noBorrowerYet');
+        return;
+      }
+
+      try {
+        await createLoan({
+          lenderId: currentUser.id,
+          borrowerId: borrower.id,
+          principal,
+          startDate,
+          interestMode: 'daily_1pct',
+          note,
+        });
+        render();
+      } catch (err) {
+        $('#loan-error').textContent = err.message;
+      }
     });
   }
 
@@ -270,8 +282,12 @@ async function renderDashboard() {
     btn.addEventListener('click', async () => {
       const loanId = btn.dataset.loanId;
       const today = new Date().toISOString().slice(0, 10);
-      await triggerForgiveness(loanId, today);
-      render();
+      try {
+        await triggerForgiveness(loanId, today);
+        render();
+      } catch (err) {
+        alert(err.message);
+      }
     });
   });
 }
