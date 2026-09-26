@@ -149,6 +149,26 @@
   .marry-btn { margin-top: 10px; width: 100%; }
   .loan-card.forgiven { opacity: 0.6; }
   .empty { text-align: center; color: var(--muted); }
+  .collapsible-header {
+    width: 100%;
+    background: transparent;
+    border: none;
+    padding: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    text-align: left;
+  }
+  .collapsible-header h2 { margin: 0; }
+  .chevron {
+    font-size: 1.2rem;
+    color: var(--muted);
+    transition: transform 0.15s ease;
+    transform: rotate(-90deg);
+  }
+  .chevron.open { transform: rotate(0deg); }
+  .collapsible-body { margin-top: 12px; }
 </style>
 </head>
 <body>
