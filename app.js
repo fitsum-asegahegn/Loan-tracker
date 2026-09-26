@@ -1,12 +1,13 @@
 import { supabaseClient } from './config.js';
-import { signIn, signOut, getCurrentUser, onAuthChange } from './auth.js';
-import { getProfile, getLoans, createLoan, triggerForgiveness } from './db.js';
+import { signIn, signUp, signOut, getCurrentUser, onAuthChange } from './auth.js';
+import { getProfile, upsertProfile, getLoans, createLoan, triggerForgiveness } from './db.js';
 import { t } from './i18n.js';
 
 let lang = localStorage.getItem('lang') || 'en';
 let currentUser = null;
 let currentProfile = null;
-let selectedRole = null; // 'lender' | 'borrower', chosen on the login screen
+let selectedRole = null; // 'lender' | 'borrower', chosen on the login/signup screen
+let authMode = 'signin'; // 'signin' | 'signup'
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -42,6 +43,7 @@ function render() {
 }
 
 function renderLogin() {
+  const isSignup = authMode === 'signup';
   $('#app').innerHTML = `
     <div class="card login-card">
       <h1>${t(lang, 'title')}</h1>
@@ -54,11 +56,18 @@ function renderLogin() {
             <button type="button" class="role-btn ${selectedRole === 'borrower' ? 'selected' : ''}" data-role="borrower">${t(lang, 'roleBorrower')}</button>
           </div>
         </div>
+        ${
+          isSignup
+            ? `<label>${t(lang, 'displayName')}<input type="text" id="display-name" required /></label>`
+            : ''
+        }
         <label>${t(lang, 'email')}<input type="email" id="email" required /></label>
-        <label>${t(lang, 'password')}<input type="password" id="password" required /></label>
-        <button type="submit">${t(lang, 'login')}</button>
+        <label>${t(lang, 'password')}<input type="password" id="password" required minlength="6" /></label>
+        <button type="submit">${t(lang, isSignup ? 'signup' : 'login')}</button>
         <p id="login-error" class="error"></p>
+        <p id="login-info" class="info"></p>
       </form>
+      <button class="link-btn" id="mode-toggle">${t(lang, isSignup ? 'haveAccount' : 'noAccount')}</button>
       <button class="lang-toggle" id="lang-toggle">${t(lang, 'lang')}</button>
     </div>
   `;
@@ -70,11 +79,17 @@ function renderLogin() {
     });
   });
 
+  $('#mode-toggle').addEventListener('click', () => {
+    authMode = isSignup ? 'signin' : 'signup';
+    render();
+  });
+
   $('#login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = $('#email').value.trim();
     const password = $('#password').value;
     $('#login-error').textContent = '';
+    $('#login-info').textContent = '';
 
     if (!selectedRole) {
       $('#login-error').textContent = t(lang, 'roleLabel');
@@ -82,17 +97,40 @@ function renderLogin() {
     }
 
     try {
-      const user = await signIn(email, password);
-      const profile = await getProfile(user.id);
-      if (profile.role !== selectedRole) {
-        await signOut();
-        $('#login-error').textContent = t(lang, 'roleMismatch');
-        return;
+      if (isSignup) {
+        const displayName = $('#display-name').value.trim();
+        const { user, session } = await signUp(email, password);
+        if (session) {
+          await upsertProfile({ id: user.id, displayName, role: selectedRole });
+          // onAuthChange will pick up the new session and render the dashboard.
+        } else {
+          $('#login-info').textContent = t(lang, 'checkEmail');
+        }
+      } else {
+        const user = await signIn(email, password);
+        let profile;
+        try {
+          profile = await getProfile(user.id);
+        } catch (_) {
+          // First sign-in with no profile row yet (e.g. email-confirm signup
+          // flow) — create one now from the picked role.
+          profile = await upsertProfile({
+            id: user.id,
+            displayName: selectedRole === 'lender' ? 'Philemon' : 'Fitsum',
+            role: selectedRole,
+          });
+        }
+        if (profile.role !== selectedRole) {
+          await signOut();
+          $('#login-error').textContent = t(lang, 'roleMismatch');
+          return;
+        }
       }
     } catch (err) {
       $('#login-error').textContent = err.message;
     }
   });
+
   $('#lang-toggle').addEventListener('click', () => {
     lang = lang === 'en' ? 'am' : 'en';
     localStorage.setItem('lang', lang);
