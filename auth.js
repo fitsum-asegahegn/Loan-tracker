@@ -6,6 +6,13 @@ export async function signIn(email, password) {
   return data.user;
 }
 
+export async function signUp(email, password) {
+  const { data, error } = await supabaseClient.auth.signUp({ email, password });
+  if (error) throw error;
+  // data.session is null if the project requires email confirmation.
+  return { user: data.user, session: data.session };
+}
+
 export async function signOut() {
   await supabaseClient.auth.signOut();
 }
