@@ -1,6 +1,6 @@
 import { supabaseClient } from './config.js';
 import { signIn, signUp, signOut, getCurrentUser, onAuthChange } from './auth.js';
-import { getProfile, upsertProfile, getLoans, createLoan, triggerForgiveness } from './db.js';
+import { getProfile, upsertProfile, getLoans, createLoan, triggerForgiveness, markRepaid } from './db.js';
 import { t } from './i18n.js';
 
 let lang = localStorage.getItem('lang') || 'en';
@@ -160,14 +160,23 @@ async function renderDashboard() {
   const loanCards = loans.length
     ? loans
         .map((loan) => {
-          const start = new Date(loan.start_date);
-          const days = daysBetween(start, now);
-          const daily = dailyCompoundBalance(Number(loan.principal), days);
-          const yearly = yearlyCompoundBalance(Number(loan.principal), days);
+          const repaid = loan.repaid;
           const clause = loan.forgiveness_clause?.[0];
           const forgiven = clause?.triggered;
+          const settled = repaid || forgiven;
+          const start = new Date(loan.start_date);
+          // Once settled, freeze the growing balance at the settlement date
+          // instead of letting it keep compounding forever.
+          const effectiveDate = repaid
+            ? new Date(loan.repaid_date)
+            : forgiven
+            ? new Date(clause.triggered_date)
+            : now;
+          const days = daysBetween(start, effectiveDate);
+          const daily = dailyCompoundBalance(Number(loan.principal), days);
+          const yearly = yearlyCompoundBalance(Number(loan.principal), days);
           const deadline = new Date(start.getTime() + YEARS_10_MS);
-          const clauseExpired = now > deadline && !forgiven;
+          const clauseExpired = now > deadline && !settled;
           const msRemaining = deadline.getTime() - now.getTime();
           const daysRemaining = Math.max(0, Math.floor(msRemaining / MS_PER_DAY));
           const hoursRemaining = Math.max(
@@ -179,7 +188,7 @@ async function renderDashboard() {
           const borrowerName = profiles[loan.borrower_id]?.display_name || 'Borrower';
 
           return `
-          <div class="card loan-card ${forgiven ? 'forgiven' : ''}">
+          <div class="card loan-card ${settled ? 'forgiven' : ''}">
             <div class="loan-header">
               <span>${lenderName} → ${borrowerName}</span>
               <span class="principal">${formatETB(loan.principal)}</span>
@@ -201,31 +210,42 @@ async function renderDashboard() {
               </div>
             </div>
 
-            <div class="clause ${forgiven ? 'clause-forgiven' : clauseExpired ? 'clause-expired' : ''}">
-              <strong>${t(lang, 'marriageClause')}</strong>
-              <p>${t(lang, 'marriageClauseDesc')}</p>
-              <p class="deadline">${t(lang, 'deadline')}: ${deadline.toISOString().slice(0, 10)}</p>
-              ${
-                !forgiven && !clauseExpired
-                  ? `<div class="countdown-box">
-                      <div class="countdown-number">${daysRemaining}<span class="countdown-unit">d</span> ${hoursRemaining}<span class="countdown-unit">h</span></div>
-                      <div class="countdown-flavor">${t(lang, flavorKey)}</div>
-                    </div>`
-                  : ''
-              }
-              ${
-                forgiven
-                  ? `<p class="status">${t(lang, 'forgiven')} (${t(lang, 'forgivenOn')} ${clause.triggered_date})</p>`
-                  : clauseExpired
-                  ? `<p class="status">${t(lang, 'expired')}</p>`
-                  : ''
-              }
-              ${
-                !forgiven && !isLender && currentUser.id === loan.borrower_id
-                  ? `<button class="marry-btn" data-loan-id="${loan.id}">${t(lang, 'iGotMarried')}</button>`
-                  : ''
-              }
-            </div>
+            ${
+              repaid
+                ? `<div class="clause clause-forgiven">
+                    <p class="status">${t(lang, 'repaidStatus')} (${t(lang, 'repaidOn')} ${loan.repaid_date})</p>
+                  </div>`
+                : `<div class="clause ${forgiven ? 'clause-forgiven' : clauseExpired ? 'clause-expired' : ''}">
+                    <strong>${t(lang, 'marriageClause')}</strong>
+                    <p>${t(lang, 'marriageClauseDesc')}</p>
+                    <p class="deadline">${t(lang, 'deadline')}: ${deadline.toISOString().slice(0, 10)}</p>
+                    ${
+                      !forgiven && !clauseExpired
+                        ? `<div class="countdown-box">
+                            <div class="countdown-number">${daysRemaining}<span class="countdown-unit">d</span> ${hoursRemaining}<span class="countdown-unit">h</span></div>
+                            <div class="countdown-flavor">${t(lang, flavorKey)}</div>
+                          </div>`
+                        : ''
+                    }
+                    ${
+                      forgiven
+                        ? `<p class="status">${t(lang, 'forgiven')} (${t(lang, 'forgivenOn')} ${clause.triggered_date})</p>`
+                        : clauseExpired
+                        ? `<p class="status">${t(lang, 'expired')}</p>`
+                        : ''
+                    }
+                    ${
+                      !forgiven && !isLender && currentUser.id === loan.borrower_id
+                        ? `<button class="marry-btn" data-loan-id="${loan.id}">${t(lang, 'iGotMarried')}</button>`
+                        : ''
+                    }
+                  </div>`
+            }
+            ${
+              isLender && !settled
+                ? `<button class="repay-btn" data-loan-id="${loan.id}">${t(lang, 'markRepaid')}</button>`
+                : ''
+            }
           </div>
         `;
         })
@@ -331,6 +351,20 @@ async function renderDashboard() {
       const today = new Date().toISOString().slice(0, 10);
       try {
         await triggerForgiveness(loanId, today);
+        render();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+
+  document.querySelectorAll('.repay-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!confirm(t(lang, 'confirmRepaid'))) return;
+      const loanId = btn.dataset.loanId;
+      const today = new Date().toISOString().slice(0, 10);
+      try {
+        await markRepaid(loanId, today);
         render();
       } catch (err) {
         alert(err.message);
