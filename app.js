@@ -233,22 +233,28 @@ async function renderDashboard() {
     : `<p class="empty">${t(lang, 'noLoans')}</p>`;
 
   const borrowers = Object.values(profiles).filter((p) => p.role === 'borrower');
+  const newLoanOpen = localStorage.getItem('newLoanOpen') !== 'false';
   const newLoanForm = isLender
     ? `
     <div class="card">
-      <h2>${t(lang, 'newLoan')}</h2>
-      ${
-        borrowers.length > 1
-          ? `<p class="error">${t(lang, 'duplicateBorrowers')}</p>`
-          : ''
-      }
-      <form id="loan-form">
-        <label>${t(lang, 'principal')}<input type="number" id="loan-principal" min="1" step="0.01" required /></label>
-        <label>${t(lang, 'startDate')}<input type="date" id="loan-date" required /></label>
-        <label>${t(lang, 'note')}<input type="text" id="loan-note" /></label>
-        <button type="submit">${t(lang, 'submit')}</button>
-        <p id="loan-error" class="error"></p>
-      </form>
+      <button type="button" class="collapsible-header" id="new-loan-toggle">
+        <h2>${t(lang, 'newLoan')}</h2>
+        <span class="chevron ${newLoanOpen ? 'open' : ''}">▾</span>
+      </button>
+      <div class="collapsible-body" id="new-loan-body" style="${newLoanOpen ? '' : 'display:none'}">
+        ${
+          borrowers.length > 1
+            ? `<p class="error">${t(lang, 'duplicateBorrowers')}</p>`
+            : ''
+        }
+        <form id="loan-form">
+          <label>${t(lang, 'principal')}<input type="number" id="loan-principal" min="1" step="0.01" required /></label>
+          <label>${t(lang, 'startDate')}<input type="date" id="loan-date" required /></label>
+          <label>${t(lang, 'note')}<input type="text" id="loan-note" /></label>
+          <button type="submit">${t(lang, 'submit')}</button>
+          <p id="loan-error" class="error"></p>
+        </form>
+      </div>
     </div>
   `
     : '';
@@ -275,6 +281,18 @@ async function renderDashboard() {
     localStorage.setItem('lang', lang);
     render();
   });
+
+  const newLoanToggle = $('#new-loan-toggle');
+  if (newLoanToggle) {
+    newLoanToggle.addEventListener('click', () => {
+      const body = $('#new-loan-body');
+      const chevron = newLoanToggle.querySelector('.chevron');
+      const isOpen = body.style.display !== 'none';
+      body.style.display = isOpen ? 'none' : '';
+      chevron.classList.toggle('open', !isOpen);
+      localStorage.setItem('newLoanOpen', String(!isOpen));
+    });
+  }
 
   const loanForm = $('#loan-form');
   if (loanForm) {
