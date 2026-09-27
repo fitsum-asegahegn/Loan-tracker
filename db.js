@@ -82,3 +82,34 @@ export async function markRepaid(loanId, repaidDate) {
   if (error) throw error;
   return data;
 }
+
+export async function createLoanRequest({ borrowerId, lenderId, amount, reason }) {
+  const { data, error } = await supabaseClient
+    .from('loan_requests')
+    .insert({ borrower_id: borrowerId, lender_id: lenderId, amount, reason })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function getLoanRequests(userId) {
+  const { data, error } = await supabaseClient
+    .from('loan_requests')
+    .select('*')
+    .or(`borrower_id.eq.${userId},lender_id.eq.${userId}`)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function respondToRequest(requestId, status) {
+  const { data, error } = await supabaseClient
+    .from('loan_requests')
+    .update({ status, resolved_at: new Date().toISOString() })
+    .eq('id', requestId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
