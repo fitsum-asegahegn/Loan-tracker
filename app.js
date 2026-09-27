@@ -1,6 +1,6 @@
 import { supabaseClient } from './config.js';
 import { signIn, signUp, signOut, getCurrentUser, onAuthChange } from './auth.js';
-import { getProfile, upsertProfile, getLoans, createLoan, triggerForgiveness, markRepaid } from './db.js';
+import { getProfile, upsertProfile, getLoans, createLoan, triggerForgiveness, markRepaid, createLoanRequest, getLoanRequests, respondToRequest } from './db.js';
 import { t } from './i18n.js';
 
 let lang = localStorage.getItem('lang') || 'en';
@@ -154,6 +154,11 @@ async function renderDashboard() {
     (data || []).forEach((p) => (profiles[p.id] = p));
   } catch (_) {}
 
+  let requests = [];
+  try {
+    requests = await getLoanRequests(currentUser.id);
+  } catch (_) {}
+
   const isLender = currentProfile?.role === 'lender';
   const now = new Date();
 
@@ -279,6 +284,67 @@ async function renderDashboard() {
   `
     : '';
 
+  const pendingRequests = requests.filter(
+    (r) => r.status === 'pending' && r.lender_id === currentUser.id
+  );
+  const pendingSection =
+    isLender && pendingRequests.length
+      ? `
+    <div class="card">
+      <h2>${t(lang, 'pendingRequests')}</h2>
+      ${pendingRequests
+        .map((r) => {
+          const borrowerName = profiles[r.borrower_id]?.display_name || 'Fitsum';
+          return `
+          <div class="request-card">
+            <p class="request-line">😩 <strong>${borrowerName}</strong> ${t(lang, 'isBegging')} <span class="request-amount">${formatETB(r.amount)}</span></p>
+            ${r.reason ? `<p class="note">"${r.reason}"</p>` : ''}
+            <div class="request-actions">
+              <button class="approve-btn" data-request-id="${r.id}" data-amount="${r.amount}" data-reason="${(r.reason || '').replace(/"/g, '&quot;')}" data-borrower-id="${r.borrower_id}">${t(lang, 'approve')}</button>
+              <button class="decline-btn" data-request-id="${r.id}">${t(lang, 'decline')}</button>
+            </div>
+          </div>
+        `;
+        })
+        .join('')}
+    </div>
+  `
+      : '';
+
+  const requestOpen = localStorage.getItem('requestOpen') !== 'false';
+  const myRequests = requests.filter((r) => r.borrower_id === currentUser.id);
+  const requestHistory = myRequests
+    .map((r) => {
+      const statusKey =
+        r.status === 'pending'
+          ? 'statusPending'
+          : r.status === 'approved'
+          ? 'statusApproved'
+          : 'statusDeclined';
+      return `<p class="request-history-line">${formatETB(r.amount)} — ${t(lang, statusKey)}</p>`;
+    })
+    .join('');
+  const requestForm = !isLender
+    ? `
+    <div class="card">
+      <button type="button" class="collapsible-header" id="request-toggle">
+        <h2>${t(lang, 'requestLoan')}</h2>
+        <span class="chevron ${requestOpen ? 'open' : ''}">▾</span>
+      </button>
+      <div class="collapsible-body" id="request-body" style="${requestOpen ? '' : 'display:none'}">
+        <form id="request-form">
+          <label>${t(lang, 'requestAmount')}<input type="number" id="request-amount" min="1" step="0.01" required /></label>
+          <label>${t(lang, 'requestReason')}<input type="text" id="request-reason" /></label>
+          <button type="submit">${t(lang, 'sendRequest')}</button>
+          <p id="request-error" class="error"></p>
+          <p id="request-info" class="info"></p>
+        </form>
+        ${myRequests.length ? `<div class="request-history">${requestHistory}</div>` : ''}
+      </div>
+    </div>
+  `
+    : '';
+
   $('#app').innerHTML = `
     <header class="topbar">
       <h1>${t(lang, 'title')}</h1>
@@ -288,7 +354,9 @@ async function renderDashboard() {
       </div>
     </header>
     <main>
+      ${pendingSection}
       ${newLoanForm}
+      ${requestForm}
       ${loanCards}
     </main>
   `;
@@ -365,6 +433,85 @@ async function renderDashboard() {
       const today = new Date().toISOString().slice(0, 10);
       try {
         await markRepaid(loanId, today);
+        render();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+
+  const requestToggle = $('#request-toggle');
+  if (requestToggle) {
+    requestToggle.addEventListener('click', () => {
+      const body = $('#request-body');
+      const chevron = requestToggle.querySelector('.chevron');
+      const isOpen = body.style.display !== 'none';
+      body.style.display = isOpen ? 'none' : '';
+      chevron.classList.toggle('open', !isOpen);
+      localStorage.setItem('requestOpen', String(!isOpen));
+    });
+  }
+
+  const requestForm2 = $('#request-form');
+  if (requestForm2) {
+    requestForm2.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('#request-error').textContent = '';
+      $('#request-info').textContent = '';
+      const amount = Number($('#request-amount').value);
+      const reason = $('#request-reason').value.trim();
+      const lender = Object.values(profiles).find((p) => p.role === 'lender');
+
+      if (!lender) {
+        $('#request-error').textContent = t(lang, 'noLenderYet');
+        return;
+      }
+
+      try {
+        await createLoanRequest({
+          borrowerId: currentUser.id,
+          lenderId: lender.id,
+          amount,
+          reason,
+        });
+        $('#request-info').textContent = t(lang, 'requestSent');
+        requestForm2.reset();
+        render();
+      } catch (err) {
+        $('#request-error').textContent = err.message;
+      }
+    });
+  }
+
+  document.querySelectorAll('.approve-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const requestId = btn.dataset.requestId;
+      const amount = Number(btn.dataset.amount);
+      const reason = btn.dataset.reason;
+      const borrowerId = btn.dataset.borrowerId;
+      const today = new Date().toISOString().slice(0, 10);
+      try {
+        await createLoan({
+          lenderId: currentUser.id,
+          borrowerId,
+          principal: amount,
+          startDate: today,
+          interestMode: 'daily_1pct',
+          note: reason,
+        });
+        await respondToRequest(requestId, 'approved');
+        render();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+
+  document.querySelectorAll('.decline-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const requestId = btn.dataset.requestId;
+      try {
+        await respondToRequest(requestId, 'declined');
         render();
       } catch (err) {
         alert(err.message);
