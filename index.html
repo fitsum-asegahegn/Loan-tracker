@@ -155,6 +155,20 @@
     color: var(--accent);
     font-weight: 600;
   }
+  .request-card {
+    background: #0b1220;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+  .request-line { margin: 0 0 4px; }
+  .request-amount { color: var(--accent); font-weight: 700; }
+  .request-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .request-actions button { flex: 1; font-size: 0.85rem; padding: 10px 6px; }
+  .approve-btn { background: var(--accent); color: #05170c; border: none; }
+  .decline-btn { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+  .request-history { margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 8px; }
+  .request-history-line { margin: 4px 0; font-size: 0.85rem; color: var(--muted); }
   .loan-card.forgiven { opacity: 0.6; }
   .empty { text-align: center; color: var(--muted); }
   .collapsible-header {
